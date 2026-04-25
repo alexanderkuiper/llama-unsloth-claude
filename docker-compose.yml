@@ -1,0 +1,57 @@
+services:
+  # --- The Brain: llama.cpp + Qwen 3.6 ---
+  llama-brain:
+    build:
+      context: .
+      dockerfile: Dockerfile.llama
+    container_name: llama-brain
+    env_file: .env
+    volumes:
+      - ./models:/models
+    ports:
+      - "8080:8080"
+    deploy:
+      resources:
+        reservations:
+          devices: [{driver: nvidia, count: all, capabilities: [gpu]}]
+    restart: unless-stopped
+
+  # --- The UI: Unsloth Studio ---
+  unsloth-studio:
+    image: unsloth/unsloth:latest
+    container_name: unsloth-studio
+    command: ["unsloth", "studio", "--host", "0.0.0.0", "--port", "8000"]
+    ports:
+      - "8000:8000"
+    environment:
+      - OPENAI_API_BASE=http://llama-brain:8080
+      - OPENAI_API_KEY=dummy  # llama.cpp doesn't require auth by default
+      - USE_CUSTOM_ENDPOINT=true
+      - LLM_PROVIDER=openai
+    volumes:
+      - ./src:/workspace/code
+      - ./unsloth-config:/root/.unsloth  # Persist settings
+    depends_on:
+      - llama-brain
+
+  # --- The Agent: Claude Code ---
+  claude-agent:
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM node:20-slim
+        RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+        RUN npm install -g @anthropic-ai/claude-code
+        WORKDIR /project
+        ENTRYPOINT ["tail", "-f", "/dev/null"]
+    container_name: claude-agent
+    volumes:
+      - ./src:/project
+    environment:
+      - ANTHROPIC_BASE_URL=http://llama-brain:8080
+      - ANTHROPIC_API_KEY=sl-no-key-required
+      - TAVILY_API_KEY=${TAVILY_API_KEY}
+    stdin_open: true
+    tty: true
+    depends_on:
+      - llama-brain

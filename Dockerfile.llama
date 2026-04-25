@@ -1,0 +1,20 @@
+FROM nvidia/cuda:12.2.0-devel-ubuntu22.04
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential git cmake python3 python3-pip curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install HuggingFace CLI for the auto-downloader
+RUN pip3 install huggingface_hub
+
+# Clone and prepare llama.cpp
+WORKDIR /opt
+RUN git clone https://github.com/ggml-org/llama.cpp.git
+
+# Setup workspace
+WORKDIR /workspace
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]
