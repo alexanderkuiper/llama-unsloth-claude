@@ -1,41 +1,96 @@
 services:
-  # --- The Brain: llama.cpp + Qwen 3.6 ---
-  llama-brain:
+  # --- llama.cpp backend (8082)---
+  llama:
+    profiles: ["llama"]
     build:
       context: .
       dockerfile: Dockerfile.llama
-    container_name: llama-brain
-    env_file: .env
+    env_file:
+      - .env
     volumes:
       - ./models:/models
     ports:
-      - "8080:8080"
+      - "8082:8080"
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
     deploy:
       resources:
         reservations:
-          devices: [{driver: nvidia, count: all, capabilities: [gpu]}]
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    networks:
+      default:
+        aliases: [llm]
     restart: unless-stopped
 
-  # --- The UI: Unsloth Studio ---
-  unsloth-studio:
+  # --- Ollama backend (8082)---
+  ollama:
+    profiles: ["ollama"]
+    image: ollama/ollama:latest
+    volumes:
+      - ./models:/models
+      - ./entrypoint.ollama.sh:/entrypoint.sh
+      - ollama-data:/root/.ollama
+    entrypoint: ["sh", "/entrypoint.sh"]
+    ports:
+      - "11434:11434"
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - OLLAMA_HOST=0.0.0.0
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    networks:
+      default:
+        aliases: [llm]
+    restart: unless-stopped
+
+  # --- OpenWebUI (8080)---
+  openwebui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: openwebui
+    ports:
+      - "8080:8080"
+    environment:
+      - ENABLE_OPENAI_API=True
+      - OPENAI_API_BASE_URL=http://llm:8080/v1 
+      - OLLAMA_BASE_URL=http://llm:11434
+    restart: unless-stopped
+
+  # --- Unsloth (ONLY with llama.cpp) (8081)---
+  unsloth:
+    profiles: ["llama"]
     image: unsloth/unsloth:latest
-    container_name: unsloth-studio
     command: ["unsloth", "studio", "--host", "0.0.0.0", "--port", "8000"]
     ports:
-      - "8000:8000"
+      - "8081:8000"
     environment:
-      - OPENAI_API_BASE=http://llama-brain:8080
-      - OPENAI_API_KEY=dummy  # llama.cpp doesn't require auth by default
-      - USE_CUSTOM_ENDPOINT=true
-      - LLM_PROVIDER=openai
+      - ENABLE_OPENAI_API=True
+      - OPENAI_API_BASE_URL=http://llm:8082
+      - OPENAI_API_KEY=dummy
+      - ENABLE_WEB_SEARCH=True
+      - WEB_SEARCH_ENGINE=tavily
+      - TAVILY_API_KEY=${TAVILY_API_KEY}
     volumes:
       - ./src:/workspace/code
-      - ./unsloth-config:/root/.unsloth  # Persist settings
-    depends_on:
-      - llama-brain
+      - ./unsloth-config:/root/.unsloth
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
 
-  # --- The Agent: Claude Code ---
-  claude-agent:
+  # --- Claude agent (Tavily here) ---
+  claude:
     build:
       context: .
       dockerfile_inline: |
@@ -44,14 +99,14 @@ services:
         RUN npm install -g @anthropic-ai/claude-code
         WORKDIR /project
         ENTRYPOINT ["tail", "-f", "/dev/null"]
-    container_name: claude-agent
     volumes:
       - ./src:/project
     environment:
-      - ANTHROPIC_BASE_URL=http://llama-brain:8080
-      - ANTHROPIC_API_KEY=sl-no-key-required
+      - ANTHROPIC_BASE_URL=http://llm:8082
+      - ANTHROPIC_API_KEY=dummy
       - TAVILY_API_KEY=${TAVILY_API_KEY}
     stdin_open: true
     tty: true
-    depends_on:
-      - llama-brain
+
+volumes:
+  ollama-data:
