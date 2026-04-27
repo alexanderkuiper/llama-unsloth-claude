@@ -61,6 +61,8 @@ services:
       - ENABLE_OPENAI_API=True
       - OPENAI_API_BASE_URL=http://llm:8080/v1 
       - OLLAMA_BASE_URL=http://llm:11434
+    volumes:
+      - ./openwebui-data:/app/backend/data
     restart: unless-stopped
 
   # --- Unsloth (ONLY with llama.cpp) (8081)---
@@ -110,3 +112,4 @@ services:
 
 volumes:
   ollama-data:
+  openwebui-data:

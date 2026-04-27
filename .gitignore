@@ -1,3 +1,5 @@
 .env
 /models/
 /src/
+/openwebui-data/cache/
+/openwebui-data/vector_db/
