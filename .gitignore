@@ -3,3 +3,7 @@
 /src/
 /openwebui-data/cache/
 /openwebui-data/vector_db/
+/openwebui-data/uploads
+*.db
+*.db-wal
+*.db-shm
