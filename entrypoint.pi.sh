@@ -3,7 +3,6 @@ set -eu
 
 MODEL_ID="${MODEL_FILE%.gguf}"
 MODEL_NAME="${MODEL_REPO##*/} (Local)"
-MAX_TOKENS="${MAX_TOKENS:-8192}"
 
 mkdir -p /root/.pi/agent
 cat > /root/.pi/agent/models.json <<EOF

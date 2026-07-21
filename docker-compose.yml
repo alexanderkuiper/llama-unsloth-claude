@@ -110,6 +110,27 @@ services:
     stdin_open: true
     tty: true
 
+  pi:
+    profiles: ["pi"]
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM node:24-bookworm-slim
+        RUN apt-get update && apt-get install -y --no-install-recommends bash ca-certificates git ripgrep curl \
+            && rm -rf /var/lib/apt/lists/*
+        RUN npm install -g --ignore-scripts @earendil-works/pi-coding-agent
+        WORKDIR /workspace
+    env_file:
+      - .env
+    volumes:
+      - ./:/workspace
+      - pi-agent-home:/root/.pi/agent
+      - ./entrypoint.pi.sh:/entrypoint.sh:ro
+    entrypoint: ["sh", "/entrypoint.sh"]
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+
 volumes:
   ollama-data:
-  openwebui-data:
+  pi-agent-home:
