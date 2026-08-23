@@ -1,12 +1,10 @@
 #!/bin/bash
-# set -e
-REPO=${MODEL_REPO}
-FILE=${MODEL_FILE}
-MMPROJ_FILE=${MMPROJ_FILE:-mmproj-F16.gguf}
-MODEL_PATH="/models/$FILE"
-MMPROJ_PATH="/models/$MMPROJ_FILE"
+set -euo pipefail   # fail fast; catch unset vars and pipe failures too
 
-# Performance tuning (overridable via .env, with sane fallbacks)
+REPO=${MODEL_REPO:-}
+FILE=${MODEL_FILE:?MODEL_FILE must be set}
+MODEL_PATH="/models/$FILE"
+
 N_GPU_LAYERS=${N_GPU_LAYERS:--1}
 CTX_SIZE=${CTX_SIZE:-32768}
 N_CPU_MOE=${N_CPU_MOE:-12}
@@ -17,29 +15,37 @@ THREADS=${THREADS:-8}
 BATCH_SIZE=${BATCH_SIZE:-2048}
 UBATCH_SIZE=${UBATCH_SIZE:-512}
 
-# 1. Check if the specific GGUF file exists
-if [ ! -f "$MODEL_PATH" ]; then
-    echo "--- Model not found at $MODEL_PATH ---"
-    echo "--- Downloading $FILE from $REPO ---"
-    hf download "$REPO" "$FILE" --local-dir /models
+# --- Wait for the model file to actually be present & stable (fixes mount races) ---
+WAIT_TIMEOUT=${MODEL_WAIT_TIMEOUT:-60}
+elapsed=0
+while [ ! -f "$MODEL_PATH" ]; do
+    if [ "$elapsed" -ge "$WAIT_TIMEOUT" ]; then
+        echo "--- ERROR: $MODEL_PATH not found after ${WAIT_TIMEOUT}s ---"
+        exit 1
+    fi
+    echo "--- Waiting for $MODEL_PATH to appear (mount not ready?) [$elapsed/${WAIT_TIMEOUT}s] ---"
+    sleep 2
+    elapsed=$((elapsed + 2))
+done
+echo "--- Model $FILE found at $MODEL_PATH ---"
+
+# --- Optional mmproj (vision projector) ---
+MMPROJ_ARGS=()
+if [ -n "${MMPROJ_FILE:-}" ]; then
+    MMPROJ_PATH="/models/$MMPROJ_FILE"
+    if [ ! -f "$MMPROJ_PATH" ]; then
+        echo "--- ERROR: mmproj file $MMPROJ_PATH not found ---"
+        exit 1
+    fi
+    MMPROJ_ARGS=(--mmproj "$MMPROJ_PATH")
 else
-    echo "--- Model $FILE found! Skipping download. ---"
+    echo "--- MMPROJ_FILE not set, skipping vision projector (text-only mode) ---"
 fi
 
-# 1b. Check if the mmproj (vision projector) file exists
-if [ ! -f "$MMPROJ_PATH" ]; then
-    echo "--- mmproj not found at $MMPROJ_PATH ---"
-    echo "--- Downloading $MMPROJ_FILE from $REPO ---"
-    hf download "$REPO" "$MMPROJ_FILE" --local-dir /models
-else
-    echo "--- mmproj $MMPROJ_FILE found! Skipping download. ---"
-fi
-
-# 2. Start the server
 echo "--- Starting llama-server ---"
 exec /app/llama-server \
     -m "$MODEL_PATH" \
-    --mmproj "$MMPROJ_PATH" \
+    "${MMPROJ_ARGS[@]}" \
     --host 0.0.0.0 --port 8080 \
     --n-gpu-layers "$N_GPU_LAYERS" \
     --ctx-size "$CTX_SIZE" \
@@ -51,5 +57,4 @@ exec /app/llama-server \
     --threads "$THREADS" \
     --batch-size "$BATCH_SIZE" \
     --ubatch-size "$UBATCH_SIZE" \
-    --no-mmap \
-    --mlock
+    --load-mode mmap

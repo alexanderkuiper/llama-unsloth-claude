@@ -7,3 +7,5 @@
 *.db
 *.db-wal
 *.db-shm
+.ua/
+turn-me-on

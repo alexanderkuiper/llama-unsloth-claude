@@ -1,32 +1,22 @@
 #!/bin/sh
-set -eu
+set -e
 
-MODEL_ID="${MODEL_FILE%.gguf}"
-MODEL_NAME="${MODEL_REPO##*/} (Local)"
-MAX_TOKENS="${MAX_TOKENS:-8192}"
+MODEL_FILE="${MODEL_FILE}"
+MODEL_PATH="/models/$MODEL_FILE"
+MODEL_NAME="qwen"
 
-mkdir -p /root/.pi/agent
-cat > /root/.pi/agent/models.json <<EOF
-{
-  "providers": {
-    "llama-local": {
-      "baseUrl": "http://llm:8080/v1",
-      "api": "openai-completions",
-      "apiKey": "dummy",
-      "models": [
-        {
-          "id": "${MODEL_ID}",
-          "name": "${MODEL_NAME}",
-          "reasoning": true,
-          "input": ["text"],
-          "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 },
-          "contextWindow": ${CTX_SIZE},
-          "maxTokens": ${MAX_TOKENS}
-        }
-      ]
-    }
-  }
-}
-EOF
+apt-get update -y
+apt-get install curl -y
 
-exec pi --provider llama-local --model "${MODEL_ID}"
+ollama serve &
+
+until curl -sf http://localhost:11434/api/tags > /dev/null; do
+  sleep 1
+done
+
+if ! ollama list | grep -q "$MODEL_NAME"; then
+  echo "FROM $MODEL_PATH" > /tmp/Modelfile
+  ollama create "$MODEL_NAME" -f /tmp/Modelfile
+fi
+
+wait
