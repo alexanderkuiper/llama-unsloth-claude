@@ -186,6 +186,7 @@ services:
       - ./:/workspace
       - pi-agent-home:/root/.pi/agent
       - understand-anything-data:/root/.understand-anything
+      - ./shared/skills:/skills:ro   # central skills store, linked into /root/.agents/skills at startup
       - ./entrypoint.pi.sh:/entrypoint.sh:ro
     entrypoint:
       - sh
@@ -194,6 +195,15 @@ services:
         find /root/.understand-anything /root/.agents -iname "SKILL.md" -path "*understand-dashboard*" 2>/dev/null | while read -r f; do
           sed -i 's/--host 127\.0\.0\.1/--host 0.0.0.0/g' "$$f"
         done
+        # Link centrally stored skills (./shared/skills) into pi's skills dir
+        if [ -d /skills ]; then
+          mkdir -p /root/.agents/skills
+          for d in /skills/*/; do
+            [ -d "$$d" ] || continue
+            n=$$(basename "$$d")
+            [ -e "/root/.agents/skills/$$n" ] || ln -s "$$d" "/root/.agents/skills/$$n"
+          done
+        fi
         exec sh /entrypoint.sh
     stdin_open: true
     tty: true
