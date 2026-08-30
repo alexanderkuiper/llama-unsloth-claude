@@ -32,8 +32,13 @@ search:
 engines:
   - name: duckduckgo
     disabled: false
-  - name: bing
+  - name: google cse
     disabled: false
+    # best engine in our tests; weight it above the others
+    weight: 2
+  # bing disabled: poor results on NL/Dutch queries (returns unrelated reddit/apple threads)
+  - name: bing
+    disabled: true
   - name: startpage
     disabled: false
   - name: mojeek
