@@ -1,0 +1,58 @@
+# SearXNG config — tuned for agentic/programmatic search (JSON API, no bot-blocking)
+# Docs: https://docs.searxng.org/admin/settings/index.html
+use_default_settings: true
+
+general:
+  debug: false
+  instance_name: "SearXNG (local)"
+  enable_metrics: true
+
+server:
+  secret_key: "125138ced43dd62bf01d9ea27cecf0a16559b124f57d31a2d562cdaf7427d2af"
+  # Local/private instance: no limiter, no captcha, no botdetection
+  limiter: false
+  public_instance: false
+  image_proxy: false
+  https: false
+
+search:
+  # JSON output is REQUIRED for agentic use (off by default)
+  formats:
+    - html
+    - json
+    - csv
+  autocomplete: ""
+  safe_search: 0
+  # return more results per page for agents to work with
+  max_page: 10
+
+# Keep only free, no-API-key engines (all defaults are key-free except brave,
+# which is already disabled by default). This pins the set so upstream engine
+# changes don't surprise you.
+engines:
+  - name: duckduckgo
+    disabled: false
+  - name: bing
+    disabled: false
+  - name: startpage
+    disabled: false
+  - name: mojeek
+    disabled: false
+  - name: wikipedia
+    disabled: false
+  - name: arxiv
+    disabled: false
+  - name: github
+    disabled: false
+  - name: stackoverflow
+    disabled: false
+  - name: wikidata
+    disabled: false
+
+# Faster, more reliable outgoing requests for headless use
+outgoing:
+  request_timeout: 6.0
+  max_request_batch_size: 8
+  pool_connections: 100
+  # prefer a modern browser UA (some engines block the default searxng UA)
+  useragent_suffix: ""

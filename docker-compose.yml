@@ -72,9 +72,36 @@ services:
               capabilities: [gpu]
     restart: unless-stopped
 
+  # --- SearXNG meta-search (8900, host: 127.0.0.1 / containers: http://searxng:8080) ---
+  # Agentic/JSON-optimized: formats=json enabled, limiter+botdetection off, free engines only.
+  # Example: curl 'http://127.0.0.1:8900/search?q=pi+coding+agent&format=json'
+  searxng:
+    image: searxng/searxng:latest
+    container_name: searxng
+    ports:
+      - "127.0.0.1:8900:8080"
+    volumes:
+      - ./searxng/settings.yml:/etc/searxng/settings.yml:ro
+      - searxng-data:/etc/searxng
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped
+
   # --- OpenWebUI (8080)---
   openwebui:
     image: ghcr.io/open-webui/open-webui:main
+    # always pull the newest :main image on `docker compose up` (no manual `pull` needed)
+    pull_policy: always
     container_name: openwebui
     ports:
       - "8080:8080"
@@ -173,6 +200,7 @@ services:
     restart: unless-stopped
 
 volumes:
+  searxng-data:
   ollama-data:
   pi-agent-home:
   understand-anything-data:
