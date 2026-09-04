@@ -6,6 +6,25 @@ MODEL_NAME="${MODEL_REPO##*/} (Local)"
 MAX_TOKENS="${MAX_TOKENS:-8192}"
 
 mkdir -p /root/.pi/agent
+
+# Ensure the MCP extension package is installed for pi
+if [ ! -d /root/.pi/agent/npm/node_modules/pi-mcp-extension ]; then
+  pi install npm:pi-mcp-extension
+fi
+
+cat > /root/.pi/agent/mcp.json <<EOF
+{
+  "mcpServers": {
+    "vault": {
+      "transport": "streamable-http",
+      "url": "http://192.168.0.101:8765/mcp",
+      "lifecycle": "eager",
+      "headers": { "Authorization": "Bearer ${VAULT_MCP_KEY}" }
+    }
+  }
+}
+EOF
+
 cat > /root/.pi/agent/models.json <<EOF
 {
   "providers": {
@@ -28,5 +47,7 @@ cat > /root/.pi/agent/models.json <<EOF
   }
 }
 EOF
+
+pi update --self 
 
 exec pi --provider llama-local --model "${MODEL_ID}"

@@ -7,4 +7,6 @@
 *.db
 *.db-wal
 *.db-shm
-/.ua
+.ua/
+turn-me-on
+/shared/temp

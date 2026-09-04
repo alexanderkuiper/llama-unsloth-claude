@@ -1,10 +1,10 @@
 #!/bin/bash
-# set -e
-REPO=${MODEL_REPO}
-FILE=${MODEL_FILE}
+set -euo pipefail   # fail fast; catch unset vars and pipe failures too
+
+REPO=${MODEL_REPO:-}
+FILE=${MODEL_FILE:?MODEL_FILE must be set}
 MODEL_PATH="/models/$FILE"
 
-# Performance tuning (overridable via .env, with sane fallbacks)
 N_GPU_LAYERS=${N_GPU_LAYERS:--1}
 CTX_SIZE=${CTX_SIZE:-32768}
 N_CPU_MOE=${N_CPU_MOE:-12}
@@ -15,34 +15,33 @@ THREADS=${THREADS:-8}
 BATCH_SIZE=${BATCH_SIZE:-2048}
 UBATCH_SIZE=${UBATCH_SIZE:-512}
 
-# 1. Check if the specific GGUF file exists
-# if [ ! -f "$MODEL_PATH" ]; then
-#     echo "--- Model not found at $MODEL_PATH ---"
-#     echo "--- Downloading $FILE from $REPO ---"
-#     hf download "$REPO" "$FILE" --local-dir /models
-# else
-#     echo "--- Model $FILE found! Skipping download. ---"
-# fi
+# --- Wait for the model file to actually be present & stable (fixes mount races) ---
+WAIT_TIMEOUT=${MODEL_WAIT_TIMEOUT:-60}
+elapsed=0
+while [ ! -f "$MODEL_PATH" ]; do
+    if [ "$elapsed" -ge "$WAIT_TIMEOUT" ]; then
+        echo "--- ERROR: $MODEL_PATH not found after ${WAIT_TIMEOUT}s ---"
+        exit 1
+    fi
+    echo "--- Waiting for $MODEL_PATH to appear (mount not ready?) [$elapsed/${WAIT_TIMEOUT}s] ---"
+    sleep 2
+    elapsed=$((elapsed + 2))
+done
+echo "--- Model $FILE found at $MODEL_PATH ---"
 
-# 1b. Only bother with the mmproj (vision projector) file if MMPROJ_FILE is actually set.
-#     Leave MMPROJ_FILE unset/commented in .env when you don't need image input —
-#     this skips the download AND skips passing --mmproj to the server, freeing VRAM.
+# --- Optional mmproj (vision projector) ---
 MMPROJ_ARGS=()
-if [ -n "$MMPROJ_FILE" ]; then
+if [ -n "${MMPROJ_FILE:-}" ]; then
     MMPROJ_PATH="/models/$MMPROJ_FILE"
-    # if [ ! -f "$MMPROJ_PATH" ]; then
-    #     echo "--- mmproj not found at $MMPROJ_PATH ---"
-    #     echo "--- Downloading $MMPROJ_FILE from $REPO ---"
-    #     hf download "$REPO" "$MMPROJ_FILE" --local-dir /models
-    # else
-    #     echo "--- mmproj $MMPROJ_FILE found! Skipping download. ---"
-    # fi
+    if [ ! -f "$MMPROJ_PATH" ]; then
+        echo "--- ERROR: mmproj file $MMPROJ_PATH not found ---"
+        exit 1
+    fi
     MMPROJ_ARGS=(--mmproj "$MMPROJ_PATH")
 else
     echo "--- MMPROJ_FILE not set, skipping vision projector (text-only mode) ---"
 fi
 
-# 2. Start the server
 echo "--- Starting llama-server ---"
 exec /app/llama-server \
     -m "$MODEL_PATH" \
@@ -58,5 +57,4 @@ exec /app/llama-server \
     --threads "$THREADS" \
     --batch-size "$BATCH_SIZE" \
     --ubatch-size "$UBATCH_SIZE" \
-    --no-mmap \
-    --mlock
+    --load-mode mmap

@@ -53,9 +53,55 @@ services:
         aliases: [llm]
     restart: unless-stopped
 
+  # --- Docling Serve (5001) — layout-aware PDF/document extraction ---
+  docling:
+    profiles: ["docling"]
+    image: quay.io/docling-project/docling-serve-cu128:latest
+    container_name: docling
+    ports:
+      - "5001:5001"
+    environment:
+      - DOCLING_SERVE_ENABLE_UI=true      # lets you test at http://localhost:5001/ui
+      - DOCLING_SERVE_MAX_SYNC_WAIT=600
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+
+  # --- SearXNG meta-search (8900, host: 127.0.0.1 / containers: http://searxng:8080) ---
+  # Agentic/JSON-optimized: formats=json enabled, limiter+botdetection off, free engines only.
+  # Example: curl 'http://127.0.0.1:8900/search?q=pi+coding+agent&format=json'
+  searxng:
+    image: searxng/searxng:latest
+    container_name: searxng
+    ports:
+      - "127.0.0.1:8900:8080"
+    volumes:
+      - ./searxng/settings.yml:/etc/searxng/settings.yml:ro
+      - searxng-data:/etc/searxng
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped
+
   # --- OpenWebUI (8080)---
   openwebui:
     image: ghcr.io/open-webui/open-webui:main
+    # always pull the newest :main image on `docker compose up` (no manual `pull` needed)
+    pull_policy: always
     container_name: openwebui
     ports:
       - "8080:8080"
@@ -63,8 +109,12 @@ services:
       - ENABLE_OPENAI_API=True
       - OPENAI_API_BASE_URL=http://llm:8080/v1 
       - OLLAMA_BASE_URL=http://llm:11434
+      # --- Content extraction engine ---
+      - CONTENT_EXTRACTION_ENGINE=docling
+      - ENABLE_DOCLING=true
+      - DOCLING_SERVER_URL=http://docling:5001
     volumes:
-      - ./openwebui-data:/app/backend/data
+      - openwebui-data:/app/backend/data
     restart: unless-stopped
 
   # --- Unsloth (ONLY with llama.cpp) (8081)---
@@ -118,8 +168,9 @@ services:
   pi:
     profiles: ["pi"]
     container_name: pi
-    ports: 
-      - "5173:5173"
+    ports:
+      - "127.0.0.1:5173:5173"
+      - "8888:8888"
     build:
       context: .
       dockerfile_inline: |
@@ -134,12 +185,33 @@ services:
     volumes:
       - ./:/workspace
       - pi-agent-home:/root/.pi/agent
+      - understand-anything-data:/root/.understand-anything
+      - ./shared/skills:/skills:ro   # central skills store, linked into /root/.agents/skills at startup
       - ./entrypoint.pi.sh:/entrypoint.sh:ro
-    entrypoint: ["sh", "/entrypoint.sh"]
+    entrypoint:
+      - sh
+      - -c
+      - |
+        find /root/.understand-anything /root/.agents -iname "SKILL.md" -path "*understand-dashboard*" 2>/dev/null | while read -r f; do
+          sed -i 's/--host 127\.0\.0\.1/--host 0.0.0.0/g' "$$f"
+        done
+        # Link centrally stored skills (./shared/skills) into pi's skills dir
+        if [ -d /skills ]; then
+          mkdir -p /root/.agents/skills
+          for d in /skills/*/; do
+            [ -d "$$d" ] || continue
+            n=$$(basename "$$d")
+            [ -e "/root/.agents/skills/$$n" ] || ln -s "$$d" "/root/.agents/skills/$$n"
+          done
+        fi
+        exec sh /entrypoint.sh
     stdin_open: true
     tty: true
     restart: unless-stopped
 
 volumes:
+  searxng-data:
   ollama-data:
   pi-agent-home:
+  understand-anything-data:
+  openwebui-data:
