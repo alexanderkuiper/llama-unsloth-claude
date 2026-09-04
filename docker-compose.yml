@@ -79,7 +79,7 @@ services:
     image: searxng/searxng:latest
     container_name: searxng
     ports:
-      - "127.0.0.1:8900:8080"
+      - "8900:8080"
     volumes:
       - ./searxng/settings.yml:/etc/searxng/settings.yml:ro
       - searxng-data:/etc/searxng

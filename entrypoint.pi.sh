@@ -12,6 +12,10 @@ if [ ! -d /root/.pi/agent/npm/node_modules/pi-mcp-extension ]; then
   pi install npm:pi-mcp-extension
 fi
 
+if [ ! -d /root/.pi/agent/npm/node_modules/pi-plan ]; then
+  pi install npm:pi-plan
+fi
+
 cat > /root/.pi/agent/mcp.json <<EOF
 {
   "mcpServers": {
@@ -49,5 +53,4 @@ cat > /root/.pi/agent/models.json <<EOF
 EOF
 
 pi update --self 
-
-exec pi --provider llama-local --model "${MODEL_ID}"
+exec tail -f /dev/null
