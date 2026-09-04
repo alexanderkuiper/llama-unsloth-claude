@@ -2,6 +2,7 @@ services:
   # --- llama.cpp backend (8082)---
   llama:
     profiles: ["llama"]
+    container_name: llama_cpp
     build:
       context: .
       dockerfile: Dockerfile.llama
@@ -29,6 +30,7 @@ services:
   ollama:
     profiles: ["ollama"]
     image: ollama/ollama:latest
+    container_name: ollama
     volumes:
       - ./models:/models
       - ./entrypoint.ollama.sh:/entrypoint.sh
@@ -69,6 +71,7 @@ services:
   unsloth:
     profiles: ["llama"]
     image: unsloth/unsloth:latest
+    container_name: unsloth
     command: ["unsloth", "studio", "--host", "0.0.0.0", "--port", "8000"]
     ports:
       - "8081:8000"
@@ -93,6 +96,8 @@ services:
 
   # --- Claude agent (Tavily here) ---
   claude:
+    profiles: ["claude"]
+    container_name: claude
     build:
       context: .
       dockerfile_inline: |
@@ -112,6 +117,9 @@ services:
 
   pi:
     profiles: ["pi"]
+    container_name: pi
+    ports: 
+      - "5173:5173"
     build:
       context: .
       dockerfile_inline: |
@@ -119,6 +127,7 @@ services:
         RUN apt-get update && apt-get install -y --no-install-recommends bash ca-certificates git ripgrep curl \
             && rm -rf /var/lib/apt/lists/*
         RUN npm install -g --ignore-scripts @earendil-works/pi-coding-agent
+        RUN curl -fsSL https://raw.githubusercontent.com/Egonex-AI/Understand-Anything/main/install.sh | bash -s pi
         WORKDIR /workspace
     env_file:
       - .env
