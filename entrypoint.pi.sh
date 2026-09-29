@@ -1,9 +1,12 @@
 #!/bin/sh
 set -eu
 
+ENDPOINT="${ENDPOINT:-"http://llm:8080/v1"}"
 MODEL_ID="${MODEL_FILE%.gguf}"
 MODEL_NAME="${MODEL_REPO##*/} (Local)"
 MAX_TOKENS="${MAX_TOKENS:-8192}"
+VAULT_ENDPOINT="${VAULT_ENDPOINT:-}"
+VAULT_MCP_KEY="${VAULT_MCP_KEY:-}"
 
 mkdir -p /root/.pi/agent
 
@@ -21,7 +24,7 @@ cat > /root/.pi/agent/mcp.json <<EOF
   "mcpServers": {
     "vault": {
       "transport": "streamable-http",
-      "url": "http://192.168.0.101:8765/mcp",
+      "url": "${VAULT_ENDPOINT}",
       "lifecycle": "eager",
       "headers": { "Authorization": "Bearer ${VAULT_MCP_KEY}" }
     }
@@ -33,7 +36,7 @@ cat > /root/.pi/agent/models.json <<EOF
 {
   "providers": {
     "llama-local": {
-      "baseUrl": "http://llm:8080/v1",
+      "baseUrl": "${ENDPOINT}",
       "api": "openai-completions",
       "apiKey": "dummy",
       "models": [
