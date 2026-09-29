@@ -131,7 +131,6 @@ services:
       - OPENAI_API_KEY=dummy
       - ENABLE_WEB_SEARCH=True
       - WEB_SEARCH_ENGINE=tavily
-      - TAVILY_API_KEY=${TAVILY_API_KEY}
     volumes:
       - ./src:/workspace/code
       - ./unsloth-config:/root/.unsloth
@@ -161,7 +160,6 @@ services:
     environment:
       - ANTHROPIC_BASE_URL=http://llm:8080
       - ANTHROPIC_API_KEY=dummy
-      - TAVILY_API_KEY=${TAVILY_API_KEY}
     stdin_open: true
     tty: true
 
